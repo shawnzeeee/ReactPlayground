@@ -1,218 +1,120 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./App.css";
 
-// Type for artwork
-interface Artwork {
-  id: number;
-  title: string;
-  artist: string;
-  style: string;
-  period: string;
-  technique: string;
-  image: string;
-  votes: number;
-}
-
-// Mock data for demonstration
-const ARTWORKS: Artwork[] = [
-  {
-    id: 1,
-    title: "Starry Night",
-    artist: "Vincent van Gogh",
-    style: "Post-Impressionism",
-    period: "1889",
-    technique: "Oil on canvas",
-    image: "https://uploads7.wikiart.org/images/vincent-van-gogh/the-starry-night-1889.jpg",
-    votes: 120,
-  },
-  {
-    id: 2,
-    title: "The Persistence of Memory",
-    artist: "Salvador Dalí",
-    style: "Surrealism",
-    period: "1931",
-    technique: "Oil on canvas",
-    image: "https://uploads8.wikiart.org/images/salvador-dali/the-persistence-of-memory-1931.jpg",
-    votes: 98,
-  },
-  {
-    id: 3,
-    title: "The Kiss",
-    artist: "Gustav Klimt",
-    style: "Symbolism",
-    period: "1907-1908",
-    technique: "Oil and gold leaf on canvas",
-    image: "https://uploads0.wikiart.org/images/gustav-klimt/the-kiss-1908.jpg",
-    votes: 110,
-  },
-  // ...add more artworks as needed
-];
-
-const periods = ["All", ...Array.from(new Set(ARTWORKS.map(a => a.period)))];
-const techniques = ["All", ...Array.from(new Set(ARTWORKS.map(a => a.technique)))];
-
 function App() {
-  const [gallery, setGallery] = useState<Artwork[]>(ARTWORKS);
-  const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState("All");
-  const [technique, setTechnique] = useState("All");
-  const [selected, setSelected] = useState<Artwork | null>(null);
-  const [wishlist, setWishlist] = useState<number[]>([]);
-  const [artOfDay, setArtOfDay] = useState<Artwork>(ARTWORKS[0]);
-
+  // Inject a serif font for a similar look (e.g., "Playfair Display" from Google Fonts)
   useEffect(() => {
-    // Art of the day: most votes
-    setArtOfDay(ARTWORKS.reduce((a, b) => (a.votes > b.votes ? a : b)));
+    const link = document.createElement("link");
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@700&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
   }, []);
 
-  useEffect(() => {
-    let filtered = ARTWORKS.filter(
-      (a) =>
-        (period === "All" || a.period === period) &&
-        (technique === "All" || a.technique === technique) &&
-        (a.artist.toLowerCase().includes(search.toLowerCase()) ||
-          a.style.toLowerCase().includes(search.toLowerCase()) ||
-          a.title.toLowerCase().includes(search.toLowerCase()))
-    );
-    setGallery(filtered);
-  }, [search, period, technique]);
+  // Scroll transition state
+  const [scrolled, setScrolled] = useState(false);
+  const page2Ref = useRef<HTMLDivElement>(null);
 
-  const toggleWishlist = (id: number) => {
-    setWishlist((prev) =>
-      prev.includes(id) ? prev.filter((wid) => wid !== id) : [...prev, id]
-    );
-  };
+  // Listen for scroll to bottom to trigger transition
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        !scrolled &&
+        window.innerHeight + window.scrollY >= document.body.offsetHeight - 2
+      ) {
+        setScrolled(true);
+        setTimeout(() => {
+          page2Ref.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100); // slight delay for smoothness
+      } else if (scrolled && window.scrollY === 0) {
+        setScrolled(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [scrolled]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-100 p-2 md:p-8">
-      {/* Art of the Day */}
-      <div className="mb-8 flex flex-col md:flex-row items-center gap-6">
-        <img
-          src={artOfDay.image}
-          alt={artOfDay.title}
-          className="w-full max-w-xs rounded-lg shadow-lg object-cover"
-        />
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold text-blue-700 mb-2">Art Piece of the Day</h2>
-          <div className="text-lg font-semibold">{artOfDay.title}</div>
-          <div className="text-gray-600">by {artOfDay.artist}</div>
-          <div className="text-gray-500 text-sm mb-2">{artOfDay.period} &middot; {artOfDay.technique}</div>
-          <div className="text-yellow-600 font-bold">Votes: {artOfDay.votes}</div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by artist, style, or title..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
-        <select
-          value={period}
-          onChange={e => setPeriod(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-2"
-        >
-          {periods.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        <select
-          value={technique}
-          onChange={e => setTechnique(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-2"
-        >
-          {techniques.map(t => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Gallery */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {gallery.map(art => (
-          <div
-            key={art.id}
-            className="bg-white rounded-lg shadow hover:shadow-xl transition cursor-pointer flex flex-col"
-            onClick={() => setSelected(art)}
-          >
-            <img
-              src={art.image}
-              alt={art.title}
-              className="h-40 md:h-56 w-full object-cover rounded-t-lg"
-            />
-            <div className="p-2 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="font-bold text-sm md:text-base truncate">{art.title}</div>
-                <div className="text-xs text-gray-500 truncate">{art.artist}</div>
-              </div>
-              <button
-                className={`mt-2 px-2 py-1 rounded text-xs font-semibold ${wishlist.includes(art.id) ? "bg-pink-200 text-pink-700" : "bg-gray-200 text-gray-600"}`}
-                onClick={e => { e.stopPropagation(); toggleWishlist(art.id); }}
+    <div className="scroll-smooth">
+      {/* Page 1: Your current design */}
+      <div className={scrolled ? "pointer-events-none opacity-60" : ""}>
+        <div className="min-h-screen bg-white grid grid-cols-1 md:grid-cols-14">
+          {/* Centered overlay text */}
+          <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+            <h1
+              className="text-5xl md:text-8xl font-bold text-center"
+              style={{ fontFamily: "'Lexend Exa', serif" }}
+            >
+              Art Gallery
+            </h1>
+          </div>
+          {/* Nav Bar */}
+          <div className="flex flex-col border-r border-gray-300 min-h-screen">
+            {/* Hamburger Icon at the top */}
+            <div className="flex justify-center items-center h-20">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-8 h-8"
               >
-                {wishlist.includes(art.id) ? "Wishlisted" : "Add to Wish-list"}
-              </button>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6.75h16.5m-16.5 5.25h16.5m-16.5 5.25h16.5"
+                />
+              </svg>
+            </div>
+            {/* Centered "A" in the remaining space */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold">A</span>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Full-size Modal */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-lg shadow-lg p-4 max-w-lg w-full relative">
-            <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-red-500 text-2xl"
-              onClick={() => setSelected(null)}
-            >
-              &times;
-            </button>
+          <div className="flex flex-row border-r border-gray-300 min-h-screen col-span-3">
             <img
-              src={selected.image}
-              alt={selected.title}
-              className="w-full h-72 object-contain rounded mb-4"
+              src="https://images.unsplash.com/flagged/photo-1572392640988-ba48d1a74457?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+              alt="Art"
+              className="w-full h-1/2 object-cover"
             />
-            <div className="font-bold text-xl mb-1">{selected.title}</div>
-            <div className="text-gray-600 mb-1">by {selected.artist}</div>
-            <div className="text-gray-500 text-sm mb-2">{selected.period} &middot; {selected.technique}</div>
-            <div className="mb-2">Style: {selected.style}</div>
-            <div className="text-yellow-600 font-bold mb-2">Votes: {selected.votes}</div>
-            <button
-              className={`px-4 py-2 rounded font-semibold ${wishlist.includes(selected.id) ? "bg-pink-200 text-pink-700" : "bg-gray-200 text-gray-600"}`}
-              onClick={() => toggleWishlist(selected.id)}
-            >
-              {wishlist.includes(selected.id) ? "Wishlisted" : "Add to Wish-list"}
-            </button>
           </div>
+          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
+          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
+          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
+          {/* Right narrow column */}
+          <div className="hidden md:block border-r border-gray-300 min-h-screen"></div>
         </div>
-      )}
-
-      {/* Wish-list */}
-      {wishlist.length > 0 && (
-        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-xs w-full z-40">
-          <div className="font-bold mb-2 text-blue-700">Wish-list</div>
-          <ul className="space-y-1 max-h-40 overflow-y-auto">
-            {wishlist.map(id => {
-              const art = ARTWORKS.find(a => a.id === id);
-              return art ? (
-                <li key={id} className="flex items-center justify-between">
-                  <span className="truncate">{art.title}</span>
-                  <button
-                    className="ml-2 text-xs text-red-500 hover:underline"
-                    onClick={() => toggleWishlist(id)}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ) : null;
-            })}
-          </ul>
-        </div>
-      )}
+        {/* Scroll down indicator */}
+        {!scrolled && (
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 animate-bounce">
+            <span className="text-3xl">↓</span>
+          </div>
+        )}
+      </div>
+      {/* Page 2: Boilerplate template */}
+      <div
+        ref={page2Ref}
+        className="min-h-screen flex flex-col items-center justify-center bg-gray-100"
+      >
+        <h2 className="text-4xl font-bold mb-4">Welcome to Page 2</h2>
+        <p className="text-lg text-gray-700 mb-8">
+          This is a boilerplate second page. Add your content here.
+        </p>
+        <button
+          className="px-6 py-2 bg-black text-white rounded hover:bg-gray-800 transition"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          Back to Top
+        </button>
+      </div>
     </div>
   );
 }
 
 export default App;
+
+
