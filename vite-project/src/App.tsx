@@ -1,120 +1,320 @@
-import React, { useEffect, useRef, useState } from "react";
-import "./App.css";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
-function App() {
-  // Inject a serif font for a similar look (e.g., "Playfair Display" from Google Fonts)
+interface FileItem {
+  id: string;
+  file: File;
+  progress: number;
+  status: "pending" | "uploading" | "success" | "error";
+  previewUrl?: string;
+}
+
+interface Toast {
+  id: string;
+  type: "success" | "error";
+  message: string;
+}
+
+const FileUploadDashboard: React.FC = () => {
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Animations for checkmark
   useEffect(() => {
-    const link = document.createElement("link");
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@700&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes checkmark {
+        0% { stroke-dashoffset: 50; opacity: 0; }
+        50% { opacity: 1; }
+        100% { stroke-dashoffset: 0; opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
     return () => {
-      document.head.removeChild(link);
+      document.head.removeChild(style);
     };
   }, []);
 
-  // Scroll transition state
-  const [scrolled, setScrolled] = useState(false);
-  const page2Ref = useRef<HTMLDivElement>(null);
+  // File handling
+  const handleFiles = useCallback((newFiles: FileList) => {
+    const fileArray = Array.from(newFiles).map((file) => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      progress: 0,
+      status: "pending" as const,
+      previewUrl: file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : undefined,
+    }));
+    setFiles((prev) => [...prev, ...fileArray]);
+    fileArray.forEach((fileItem) => {
+      setTimeout(() => uploadFile(fileItem.id), 500);
+    });
+  }, []);
 
-  // Listen for scroll to bottom to trigger transition
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        !scrolled &&
-        window.innerHeight + window.scrollY >= document.body.offsetHeight - 2
-      ) {
-        setScrolled(true);
-        setTimeout(() => {
-          page2Ref.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100); // slight delay for smoothness
-      } else if (scrolled && window.scrollY === 0) {
-        setScrolled(false);
+  const uploadFile = (fileId: string) => {
+    setFiles((prev) =>
+      prev.map((f) => (f.id === fileId ? { ...f, status: "uploading" } : f))
+    );
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress >= 100) {
+        clearInterval(interval);
+        const success = Math.random() > 0.1;
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, progress: 100, status: success ? "success" : "error" }
+              : f
+          )
+        );
+        if (success) {
+          addToast("success", "File uploaded successfully!");
+        } else {
+          addToast("error", "Upload failed. Please try again.");
+        }
+      } else {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId ? { ...f, progress: Math.min(progress, 99) } : f
+          )
+        );
       }
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [scrolled]);
+    }, 200);
+  };
+
+  const retryUpload = (fileId: string) => {
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === fileId ? { ...f, progress: 0, status: "pending" } : f
+      )
+    );
+    setTimeout(() => uploadFile(fileId), 500);
+  };
+
+  const addToast = (type: "success" | "error", message: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  // Components
+  const CheckmarkIcon = () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M5 13l4 4L19 7"
+        stroke="#22c55e"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{
+          strokeDasharray: 50,
+          strokeDashoffset: 50,
+          animation: "checkmark 0.6s ease forwards",
+        }}
+      />
+    </svg>
+  );
+  const SkeletonLoader = () => (
+    <div className="w-full h-full animate-pulse bg-gray-200 rounded" />
+  );
 
   return (
-    <div className="scroll-smooth">
-      {/* Page 1: Your current design */}
-      <div className={scrolled ? "pointer-events-none opacity-60" : ""}>
-        <div className="min-h-screen bg-white grid grid-cols-1 md:grid-cols-14">
-          {/* Centered overlay text */}
-          <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-            <h1
-              className="text-5xl md:text-8xl font-bold text-center"
-              style={{ fontFamily: "'Lexend Exa', serif" }}
-            >
-              Art Gallery
-            </h1>
-          </div>
-          {/* Nav Bar */}
-          <div className="flex flex-col border-r border-gray-300 min-h-screen">
-            {/* Hamburger Icon at the top */}
-            <div className="flex justify-center items-center h-20">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-8 h-8"
-              >
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center py-8 px-2">
+      <div className="w-full max-w-4xl mx-auto">
+        <header className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+            File Upload Dashboard
+          </h1>
+          <p className="text-gray-500 text-base md:text-lg">
+            Drag and drop your files or click to browse
+          </p>
+        </header>
+        <div
+          className={`rounded-2xl p-10 mb-8 shadow-lg border-2 border-dashed transition-all duration-300 cursor-pointer bg-white ${
+            isDragging ? "border-blue-400 bg-blue-50" : "border-gray-300"
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="flex flex-col items-center">
+            <div className="w-20 h-20 flex items-center justify-center rounded-full bg-gray-100 mb-4 shadow">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
                 <path
+                  d="M7 10L12 5L17 10M12 5V15M5 19H19"
+                  stroke="#4a5568"
+                  strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M3.75 6.75h16.5m-16.5 5.25h16.5m-16.5 5.25h16.5"
                 />
               </svg>
             </div>
-            {/* Centered "A" in the remaining space */}
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <span className="text-3xl font-bold">A</span>
+            <div className="text-lg font-medium text-gray-700 mb-1">
+              Drop files here or click to upload
             </div>
+            <div className="text-sm text-gray-400 mb-2">
+              Support for JPG, PNG, PDF up to 10MB
+            </div>
+            <button
+              className="mt-2 px-5 py-2 rounded-lg bg-gray-200 text-gray-700 font-semibold shadow hover:bg-gray-300"
+              type="button"
+            >
+              Browse Files
+            </button>
           </div>
-          <div className="flex flex-row border-r border-gray-300 min-h-screen col-span-3">
-            <img
-              src="https://images.unsplash.com/flagged/photo-1572392640988-ba48d1a74457?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-              alt="Art"
-              className="w-full h-1/2 object-cover"
-            />
-          </div>
-          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
-          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
-          <div className="border-r border-gray-300 px-2 py-4 min-h-screen col-span-3"></div>
-          {/* Right narrow column */}
-          <div className="hidden md:block border-r border-gray-300 min-h-screen"></div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+          />
         </div>
-        {/* Scroll down indicator */}
-        {!scrolled && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 animate-bounce">
-            <span className="text-3xl">↓</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 file-grid">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              className="bg-white rounded-xl shadow p-4 flex flex-col items-center transition hover:shadow-xl"
+            >
+              <div className="w-full h-40 rounded-lg mb-4 flex items-center justify-center bg-gray-100 overflow-hidden">
+                {file.status === "pending" ? (
+                  <SkeletonLoader />
+                ) : file.previewUrl ? (
+                  <img
+                    src={file.previewUrl}
+                    alt={file.file.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M9 12H15M9 16H15M17 21H7C5.89543 21 5 20.1046 5 19V5C5 3.89543 5.89543 3 7 3H12.5858C12.851 3 13.1054 3.10536 13.2929 3.29289L18.7071 8.70711C18.8946 8.89464 19 9.149 19 9.41421V19C19 20.1046 18.1046 21 17 21Z"
+                      stroke="#718096"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </div>
+              <div className="w-full truncate font-medium text-gray-700 mb-2 text-center">
+                {file.file.name}
+              </div>
+              {(file.status === "uploading" || file.status === "pending") && (
+                <>
+                  <div className="w-full bg-gray-200 rounded h-3 overflow-hidden mb-1">
+                    <div
+                      className="bg-blue-500 h-3 transition-all duration-300"
+                      style={{ width: `${file.progress}%` }}
+                    />
+                  </div>
+                  <div className="w-full text-xs text-right text-blue-700 font-semibold">
+                    {Math.round(file.progress)}%
+                  </div>
+                </>
+              )}
+              {file.status === "success" && (
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 my-2">
+                  <CheckmarkIcon />
+                </div>
+              )}
+              {file.status === "error" && (
+                <>
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 my-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 8V12M12 16H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                        stroke="#e53e3e"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <button
+                    className="w-full mt-2 px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      retryUpload(file.id);
+                    }}
+                  >
+                    Retry Upload
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Toasts */}
+      <div className="fixed bottom-6 right-6 z-50 space-y-3">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center px-5 py-3 rounded-lg shadow-lg min-w-[220px] ${
+              toast.type === "success"
+                ? "bg-green-100 border border-green-300"
+                : "bg-red-100 border border-red-300"
+            }`}
+            style={{
+              animation: "slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards",
+            }}
+          >
+            {toast.type === "success" ? (
+              <CheckmarkIcon />
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 8V12M12 16H12.01"
+                  stroke="#e53e3e"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+            <span className="ml-3 text-gray-800">{toast.message}</span>
           </div>
-        )}
+        ))}
       </div>
-      {/* Page 2: Boilerplate template */}
-      <div
-        ref={page2Ref}
-        className="min-h-screen flex flex-col items-center justify-center bg-gray-100"
-      >
-        <h2 className="text-4xl font-bold mb-4">Welcome to Page 2</h2>
-        <p className="text-lg text-gray-700 mb-8">
-          This is a boilerplate second page. Add your content here.
-        </p>
-        <button
-          className="px-6 py-2 bg-black text-white rounded hover:bg-gray-800 transition"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        >
-          Back to Top
-        </button>
-      </div>
+      {/* Toast/Progress Animations */}
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+          to { opacity: 0; transform: translateX(100%); }
+        }
+      `}</style>
     </div>
   );
-}
+};
 
-export default App;
-
-
+export default FileUploadDashboard;
